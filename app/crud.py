@@ -1,10 +1,56 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, SQLModel, select
 
-from .models import (
-    Company, Storage, Waste, Location, Road,
-    CompanyLocationLink, CompanyWasteLink,
-    StorageLocationLink, StorageWasteLink)
-from .database import engine
+
+"""
+#################### General CRUDs ####################
+"""
+
+
+def create_db_object(session: Session, db_object: SQLModel):
+    session.add(db_object)
+    session.commit()
+    session.refresh(db_object)
+    return db_object
+
+
+def get_db_objects(
+        session: Session, db_class: type[SQLModel],
+        skip: int, limit: int = 10
+        ):
+    db_objects = session.exec(select(db_class).offset(skip).limit(limit)).all()
+    return db_objects
+
+
+def get_db_object_by_field(
+        session: Session, db_table: type[SQLModel], field: str, value):
+    db_object = session.exec(
+        select(db_table).where(getattr(db_table, field) == value)).first()
+    return db_object
+
+
+def update_db_object(session: Session, db_object: SQLModel, update_data: dict):
+    db_object.sqlmodel_update(update_data)
+    session.add(db_object)
+    session.commit()
+    session.refresh(db_object)
+    return db_object
+
+
+def delete_db_object(session: Session, db_object: SQLModel):
+    session.delete(db_object)
+    session.commit()
+
+
+def get_db_link(
+        session: Session, db_table: type[SQLModel],
+        id_field_1: str, value_1: int, id_field_2: str, value_2: int
+        ):
+    db_link = session.exec(
+        select(db_table)
+        .where(getattr(db_table, id_field_1) == value_1)
+        .where(getattr(db_table, id_field_2) == value_2)
+        ).first()
+    return db_link
 
 
 """
@@ -98,81 +144,9 @@ from .database import engine
 """
 
 
-def create_waste(session: Session, waste: Waste):
-    session.add(waste)
-    session.commit()
-    session.refresh(waste)
-    return waste
-
-
-def get_wastes(session: Session, skip: int, limit: int = 10):
-    wastes = session.exec(select(Waste).offset(skip).limit(limit)).all()
-    return wastes
-
-
-def get_waste_by_id(session: Session, waste_id: int):
-    waste = session.exec(select(Waste).where(Waste.id == waste_id)).first()
-    return waste
-
-
-def get_waste_by_name(session: Session, waste_name: str):
-    waste = session.exec(select(Waste).where(Waste.name == waste_name)).first()
-    return waste
-
-
-def update_waste(session: Session, waste: Waste, waste_data: dict):
-    waste.sqlmodel_update(waste_data)
-    session.add(waste)
-    session.commit()
-    session.refresh(waste)
-    return waste
-
-
-def delete_waste(session: Session, waste: Waste):
-    session.delete(waste)
-    session.commit()
-
-
 """
 #################### Storage CRUDs ####################
 """
-
-
-def create_storage(session: Session, storage: Storage):
-    session.add(storage)
-    session.commit()
-    session.refresh(storage)
-    return storage
-
-
-def get_storages(session: Session, skip: int, limit: int = 10):
-    storages = session.exec(select(Storage).offset(skip).limit(limit)).all()
-    return storages
-
-
-def get_storage_by_id(session: Session, storage_id: int):
-    storage = session.exec(
-        select(Storage).where(Storage.id == storage_id)).first()
-    return storage
-
-
-def get_storage_by_email(session: Session, storage_email: str):
-    storage = session.exec(
-        select(Storage).where(Storage.email == storage_email)).first()
-    return storage
-
-
-def update_storage(session: Session, storage: Storage, storage_data: dict):
-    storage.sqlmodel_update(storage_data)
-    session.add(storage)
-    session.commit()
-    session.refresh(storage)
-    return storage
-
-
-def delete_storage(session: Session, storage: Storage):
-    session.delete(storage)
-    session.commit()
 
 
 """
@@ -180,138 +154,11 @@ def delete_storage(session: Session, storage: Storage):
 """
 
 
-def create_storage_waste_link(session: Session, waste_link: StorageWasteLink):
-    session.add(waste_link)
-    session.commit()
-    session.refresh(waste_link)
-    return waste_link
-
-
-def get_storage_waste_link(session: Session, storage_id: int, waste_id: int):
-    db_waste_link = session.exec(
-        select(StorageWasteLink)
-        .where(StorageWasteLink.storage_id == storage_id)
-        .where(StorageWasteLink.waste_id == waste_id)).first()
-    return db_waste_link
-
-
-def update_storage_waste_link(
-        session: Session, storage_waste_link: StorageWasteLink,
-        waste_link_data: dict):
-    storage_waste_link.sqlmodel_update(waste_link_data)
-    if storage_waste_link.amount > storage_waste_link.max_amount:
-        storage_waste_link.amount = storage_waste_link.max_amount
-    session.add(storage_waste_link)
-    session.commit()
-    session.refresh(storage_waste_link)
-    return storage_waste_link
-
-
-def delete_storage_waste_link(
-        session: Session, storage_waste_link: StorageWasteLink):
-    session.delete(storage_waste_link)
-    session.commit()
-
-
-# def create_storage_location_link(storage_name: str, location_name: str):
-#     with Session(engine) as session:
-#         storage = session.exec(
-#             select(Storage).where(Storage.name == storage_name)).one()
-#         location = session.exec(
-#             select(Location).where(Location.name == location_name)).one()
-#         storage_location_link = StorageLocationLink(
-#             storage=storage, location=location)
-#         session.add(storage_location_link)
-#         session.commit()
-
-
 """
 #################### Company CRUDs ####################
 """
 
 
-def create_company(session: Session, company: Company):
-    session.add(company)
-    session.commit()
-    session.refresh(company)
-    return company
-
-
-def get_companies(session: Session, skip: int, limit: int = 10):
-    companies = session.exec(select(Company).offset(skip).limit(limit)).all()
-    return companies
-
-
-def get_company_by_id(session: Session, company_id: int):
-    company = session.exec(
-        select(Company).where(Company.id == company_id)).first()
-    return company
-
-
-def get_company_by_email(session: Session, company_email: str):
-    company = session.exec(
-        select(Company).where(Company.email == company_email)).first()
-    return company
-
-
-def update_company(session: Session, company: Company, company_data: dict):
-    company.sqlmodel_update(company_data)
-    session.add(company)
-    session.commit()
-    session.refresh(company)
-    return company
-
-
-def delete_company(session: Session, company: Company):
-    session.delete(company)
-    session.commit()
-
-
 """
 #################### Company Waste Link CRUDs ####################
 """
-
-
-def create_company_waste_link(session: Session, waste_link: CompanyWasteLink):
-    session.add(waste_link)
-    session.commit()
-    session.refresh(waste_link)
-    return waste_link
-
-
-def get_company_waste_link(session: Session, company_id: int, waste_id: int):
-    db_waste_link = session.exec(
-        select(CompanyWasteLink)
-        .where(CompanyWasteLink.company_id == company_id)
-        .where(CompanyWasteLink.waste_id == waste_id)).first()
-    return db_waste_link
-
-
-def update_company_waste_link(
-        session: Session, company_waste_link: CompanyWasteLink,
-        waste_link_data: dict):
-    company_waste_link.sqlmodel_update(waste_link_data)
-    if company_waste_link.amount > company_waste_link.max_amount:
-        company_waste_link.amount = company_waste_link.max_amount
-    session.add(company_waste_link)
-    session.commit()
-    session.refresh(company_waste_link)
-    return company_waste_link
-
-
-def delete_company_waste_link(
-        session: Session, company_waste_link: CompanyWasteLink):
-    session.delete(company_waste_link)
-    session.commit()
-
-
-# def create_company_location_link(company_name: str, location_name: str):
-#     with Session(engine) as session:
-#         company = session.exec(
-#             select(Company).where(Company.name == company_name)).one()
-#         location = session.exec(
-#             select(Location).where(Location.name == location_name)).one()
-#         company_location_link = CompanyLocationLink(
-#             company=company, location=location)
-#         session.add(company_location_link)
-#         session.commit()

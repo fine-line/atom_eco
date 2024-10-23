@@ -4,18 +4,6 @@ from pydantic import EmailStr
 """
 #################### Company models ####################
 """
-# class Company(SQLModel, table=True):
-#     # DB columns
-#     id: int | None = Field(default=None, primary_key=True)
-#     name: str = Field(index=True)
-#     email: EmailStr = Field(sa_type=AutoString, unique=True, index=True)
-#     # Relationships
-#     waste_links: list["CompanyWasteLink"] = Relationship(
-#         back_populates="company",
-#         cascade_delete=True)
-#     location_link: "CompanyLocationLink" = Relationship(
-#         back_populates="company",
-#         cascade_delete=True)
 
 
 class CompanyBase(SQLModel):
@@ -55,18 +43,6 @@ class CompanyUpdate(SQLModel):
 """
 #################### Storage models ####################
 """
-# class Storage(SQLModel, table=True):
-#     # DB columns
-#     id: int | None = Field(default=None, primary_key=True)
-#     name: str = Field(index=True)
-#     email: EmailStr = Field(sa_type=AutoString, unique=True, index=True)
-#     # Relationships
-#     waste_links: list["StorageWasteLink"] = Relationship(
-#         back_populates="storage",
-#         cascade_delete=True)
-#     location_link: "StorageLocationLink" = Relationship(
-#         back_populates="storage",
-#         cascade_delete=True)
 
 
 class StorageBase(SQLModel):
@@ -106,17 +82,6 @@ class StorageUpdate(SQLModel):
 """
 #################### Waste models ####################
 """
-# class Waste(SQLModel, table=True):
-#     # DB columns
-#     id: int | None = Field(default=None, primary_key=True)
-#     name: str = Field(index=True)
-#     # Relationships
-#     company_links: list["CompanyWasteLink"] = Relationship(
-#         back_populates="waste",
-#         cascade_delete=True)
-#     storage_links: list["StorageWasteLink"] = Relationship(
-#         back_populates="waste",
-#         cascade_delete=True)
 
 
 class WasteBase(SQLModel):
@@ -149,29 +114,18 @@ class WasteUpdate(WasteBase):
 """
 #################### Company Waste Link models ####################
 """
-# class CompanyWasteLink(SQLModel, table=True):
-#     # DB columns
-#     company_id: int | None = Field(
-#         default=None, foreign_key="company.id", primary_key=True)
-#     waste_id: int | None = Field(
-#         default=None, foreign_key="waste.id", primary_key=True)
-#     amount: int
-#     max_amount: int
-#     # Relationships
-#     company: Company = Relationship(back_populates="waste_links")
-#     waste: Waste = Relationship(back_populates="company_links")
 
 
 class CompanyWasteLinkBase(SQLModel):
     waste_id: int | None = Field(
         default=None, foreign_key="waste.id", primary_key=True)
-    max_amount: int
+    max_amount: int = Field(default=0, ge=0)
 
 
 class CompanyWasteLink(CompanyWasteLinkBase, table=True):
     company_id: int | None = Field(
         default=None, foreign_key="company.id", primary_key=True)
-    amount: int = Field(default=0)
+    amount: int = Field(default=0, ge=0)
     # Relationships
     company: Company = Relationship(back_populates="waste_links")
     waste: Waste = Relationship(back_populates="company_links")
@@ -185,34 +139,15 @@ class CompanyWasteLinkCreate(CompanyWasteLinkBase):
     pass
 
 
-class CompanyWasteLinkUpdate(SQLModel):
-    waste_id: int
-    amount: int | None = None
-    max_amount: int | None = None
-
-
 """
 #################### Storage Waste Link models ####################
 """
 
 
-# class StorageWasteLink(SQLModel, table=True):
-#     # DB columns
-#     storage_id: int | None = Field(
-#         default=None, foreign_key="storage.id", primary_key=True)
-#     waste_id: int | None = Field(
-#         default=None, foreign_key="waste.id", primary_key=True)
-#     amount: int
-#     max_amount: int
-#     # Relationships
-#     storage: Storage = Relationship(back_populates="waste_links")
-#     waste: Waste = Relationship(back_populates="storage_links")
-
-
 class StorageWasteLinkBase(SQLModel):
     waste_id: int | None = Field(
         default=None, foreign_key="waste.id", primary_key=True)
-    max_amount: int
+    max_amount: int = Field(default=0, ge=0)
 
 
 class StorageWasteLink(StorageWasteLinkBase, table=True):
@@ -230,12 +165,6 @@ class StorageWasteLinkPublic(StorageWasteLinkBase):
 
 class StorageWasteLinkCreate(StorageWasteLinkBase):
     pass
-
-
-class StorageWasteLinkUpdate(SQLModel):
-    waste_id: int
-    amount: int | None = None
-    max_amount: int | None = None
 
 
 """
