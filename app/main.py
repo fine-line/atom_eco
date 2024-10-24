@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from .routers import companies, storages, system
+from .routers import companies, storages, waste, locations
 from .database import create_db_and_tables
 
 
@@ -18,7 +18,8 @@ app = FastAPI(
 
 app.include_router(router=companies.router, prefix="/v1")
 app.include_router(router=storages.router, prefix="/v1")
-app.include_router(router=system.router, prefix="/v1")
+app.include_router(router=waste.router, prefix="/v1")
+app.include_router(router=locations.router, prefix="/v1")
 
 
 @app.get("/")

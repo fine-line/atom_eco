@@ -1,5 +1,6 @@
 from sqlmodel import Field, Relationship, SQLModel, AutoString
 from pydantic import EmailStr
+from typing import Optional
 
 """
 #################### Company models ####################
@@ -30,9 +31,11 @@ class CompanyPublic(CompanyBase):
     id: int
 
 
-class CompanyPublicWithWaste(CompanyPublic):
+class CompanyPublicDetailed(CompanyPublic):
     id: int
+    email: EmailStr
     waste_links: list["CompanyWasteLinkPublic"]
+    location_link: Optional["CompanyLocationLinkPublic"]
 
 
 class CompanyUpdate(SQLModel):
@@ -69,9 +72,11 @@ class StoragePublic(StorageBase):
     id: int
 
 
-class StoragePublicWithWaste(StoragePublic):
+class StoragePublicDetailed(StoragePublic):
     id: int
+    email: EmailStr
     waste_links: list["StorageWasteLinkPublic"]
+    location_link: Optional["StorageLocationLinkPublic"]
 
 
 class StorageUpdate(SQLModel):
@@ -172,11 +177,13 @@ class StorageWasteLinkCreate(StorageWasteLinkBase):
 """
 
 
-class Location(SQLModel, table=True):
-    # DB columns
-    id: int | None = Field(default=None, primary_key=True)
+class LocationBase(SQLModel):
     name: str = Field(index=True)
-    # Relationships
+
+
+class Location(LocationBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+
     roads_from: list["Road"] = Relationship(
         back_populates="location_from",
         cascade_delete=True,
@@ -193,19 +200,39 @@ class Location(SQLModel, table=True):
         cascade_delete=True)
 
 
+class LocationCreate(LocationBase):
+    pass
+
+
+class LocationPublic(LocationBase):
+    id: int
+
+
+class LocationPublicWithRoad(LocationBase):
+    id: int
+    roads_from: list["RoadFromPublic"]
+    roads_to: list["RoadToPublic"]
+
+
+class LocationUpdate(LocationBase):
+    name: str | None = None
+
+
 """
 #################### Road models ####################
 """
 
 
-class Road(SQLModel, table=True):
-    # DB columns
+class RoadBase(SQLModel):
+    distance: int
+
+
+class Road(RoadBase, table=True):
     location_from_id: int | None = Field(
         default=None, foreign_key="location.id", primary_key=True)
     location_to_id: int | None = Field(
         default=None, foreign_key="location.id", primary_key=True)
-    distance: int
-    # Relationships
+
     location_from: Location = Relationship(
         back_populates="roads_from",
         sa_relationship_kwargs={"foreign_keys": "Road.location_from_id"})
@@ -214,20 +241,38 @@ class Road(SQLModel, table=True):
         sa_relationship_kwargs={"foreign_keys": "Road.location_to_id"})
 
 
+class RoadFromPublic(RoadBase):
+    location_to: LocationPublic
+
+
+class RoadToPublic(RoadBase):
+    location_from: LocationPublic
+
+
+class RoadUpdate(SQLModel):
+    pass
+
+
 """
 #################### Company Location Link models ####################
 """
 
 
-class CompanyLocationLink(SQLModel, table=True):
-    # DB columns
-    company_id: int | None = Field(
-        default=None, foreign_key="company.id", primary_key=True, unique=True)
+class CompanyLocationLinkBase(SQLModel):
     location_id: int | None = Field(
         default=None, foreign_key="location.id", primary_key=True, unique=True)
-    # Relationships
+
+
+class CompanyLocationLink(CompanyLocationLinkBase, table=True):
+    company_id: int | None = Field(
+        default=None, foreign_key="company.id", primary_key=True, unique=True)
+
     company: Company = Relationship(back_populates="location_link")
     location: Location = Relationship(back_populates="company_links")
+
+
+class CompanyLocationLinkPublic(CompanyLocationLinkBase):
+    pass
 
 
 """
@@ -235,12 +280,18 @@ class CompanyLocationLink(SQLModel, table=True):
 """
 
 
-class StorageLocationLink(SQLModel, table=True):
-    # DB columns
-    storage_id: int | None = Field(
-        default=None, foreign_key="storage.id", primary_key=True, unique=True)
+class StorageLocationLinkBase(SQLModel):
     location_id: int | None = Field(
         default=None, foreign_key="location.id", primary_key=True, unique=True)
-    # Relationships
+
+
+class StorageLocationLink(StorageLocationLinkBase, table=True):
+    storage_id: int | None = Field(
+        default=None, foreign_key="storage.id", primary_key=True, unique=True)
+
     storage: Storage = Relationship(back_populates="location_link")
     location: Location = Relationship(back_populates="storage_links")
+
+
+class StorageLocationLinkPublic(StorageLocationLinkBase):
+    pass

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
 from ..dependencies import get_session
@@ -6,10 +6,10 @@ from ..models import Waste, WasteCreate, WastePublic, WasteUpdate
 from .. import crud
 
 
-router = APIRouter(prefix="/system", tags=["system"])
+router = APIRouter(prefix="/wastes", tags=["system"])
 
 
-@router.post("/wastes/create-waste/", response_model=WastePublic)
+@router.post("/create/", response_model=WastePublic)
 async def create_waste(
         waste: WasteCreate, session: Session = Depends(get_session)):
     # Map to Waste
@@ -24,15 +24,16 @@ async def create_waste(
     return crud.create_db_object(session=session, db_object=db_waste)
 
 
-@router.get("/wastes/", response_model=list[WastePublic])
+@router.get("/", response_model=list[WastePublic])
 async def get_wastes(
-        skip: int = 0, limit: int = 10,
+        skip: int = Query(default=0, ge=0),
+        limit: int = Query(default=10, le=100),
         session: Session = Depends(get_session)):
     return crud.get_db_objects(
         session=session, db_class=Waste, skip=skip, limit=limit)
 
 
-@router.get("/wastes/{waste_id}", response_model=WastePublic)
+@router.get("/{waste_id}", response_model=WastePublic)
 async def get_waste(waste_id:  int, session: Session = Depends(get_session)):
     db_waste = crud.get_db_object_by_field(
         session=session, db_table=Waste, field="id", value=waste_id)
@@ -42,7 +43,7 @@ async def get_waste(waste_id:  int, session: Session = Depends(get_session)):
     return db_waste
 
 
-@router.patch("/wastes/{waste_id}", response_model=WastePublic)
+@router.patch("/{waste_id}", response_model=WastePublic)
 async def update_waste(
         waste_id: int, waste: WasteUpdate,
         session: Session = Depends(get_session)):
@@ -57,7 +58,7 @@ async def update_waste(
         session=session, db_object=db_waste, update_data=update_data)
 
 
-@router.delete("/wastes/{waste_id}")
+@router.delete("/{waste_id}")
 async def delete_waste(
         waste_id: int, session: Session = Depends(get_session)):
     db_waste = crud.get_db_object_by_field(
@@ -68,12 +69,6 @@ async def delete_waste(
     crud.delete_db_object(session=session, db_object=db_waste)
     return {"ok": True}
 
-
-# @router.get("/", response_model=list[StoragePublic])
-# async def get_storages(
-#         skip: int = 0, limit: int = 10,
-#         session: Session = Depends(get_session)):
-#     return crud.get_storages(session=session, skip=skip, limit=limit)
 
 # Helper functions
 
