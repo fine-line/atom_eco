@@ -192,10 +192,10 @@ class Location(LocationBase, table=True):
         back_populates="location_to",
         cascade_delete=True,
         sa_relationship_kwargs={"foreign_keys": "Road.location_to_id"})
-    company_links: "CompanyLocationLink" = Relationship(
+    company_link: "CompanyLocationLink" = Relationship(
         back_populates="location",
         cascade_delete=True)
-    storage_links: "StorageLocationLink" = Relationship(
+    storage_link: "StorageLocationLink" = Relationship(
         back_populates="location",
         cascade_delete=True)
 
@@ -268,7 +268,7 @@ class CompanyLocationLink(CompanyLocationLinkBase, table=True):
         default=None, foreign_key="company.id", primary_key=True, unique=True)
 
     company: Company = Relationship(back_populates="location_link")
-    location: Location = Relationship(back_populates="company_links")
+    location: Location = Relationship(back_populates="company_link")
 
 
 class CompanyLocationLinkPublic(CompanyLocationLinkBase):
@@ -290,8 +290,38 @@ class StorageLocationLink(StorageLocationLinkBase, table=True):
         default=None, foreign_key="storage.id", primary_key=True, unique=True)
 
     storage: Storage = Relationship(back_populates="location_link")
-    location: Location = Relationship(back_populates="storage_links")
+    location: Location = Relationship(back_populates="storage_link")
 
 
 class StorageLocationLinkPublic(StorageLocationLinkBase):
     pass
+
+
+"""
+#################### Route models ####################
+"""
+
+
+class RouteBase(SQLModel):
+    waste: Waste
+    route_history: list[Storage]
+    distance: int
+
+
+class Route(RouteBase):
+    next_location: Location
+    total_empty_space: int
+
+    def __lt__(self, other: "Route"):
+        return self.distance < other.distance
+
+    def __hash__(self):
+        return hash(self.next_location.id)
+
+    # def __repr__(self):
+    #     return f"route: {self.route_history}\ndistance: {self.distance}"
+
+
+class RoutePublic(RouteBase):
+    waste: WastePublic
+    route_history: list[StoragePublic]

@@ -4,12 +4,13 @@ from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
 from sqlmodel import Session
 
 from .waste import get_db_waste_by_id
+from .optimal_route import optimal_route
 from ..dependencies import get_session, get_fake_db_session
 from ..models import (
     Company, CompanyPublic, CompanyPublicDetailed,
     CompanyCreate, CompanyUpdate,
     CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate,
-    CompanyLocationLink, Location, LocationCreate, Road
+    CompanyLocationLink, Location, LocationCreate, Road, RoutePublic
     )
 from .. import crud
 
@@ -209,6 +210,24 @@ async def assign_company_location(
                            )
             crud.create_db_object(session=session, db_object=db_road)
     return db_company
+
+
+@router.get("/{company_id}/optimal-route/", response_model=list[RoutePublic])
+async def get_optimal_route(
+        company_id: int,
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    routes = []
+    for company_waste_link in db_company.waste_links:
+        route = optimal_route(
+            company=db_company, company_waste_link=company_waste_link)
+        if not route:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Route not found")
+        routes.append(route)
+    return routes
 
 
 # Helper functions
