@@ -1,4 +1,5 @@
 from typing import Annotated
+from functools import wraps
 
 from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
 from sqlmodel import Session
@@ -13,53 +14,97 @@ from ..models import (
     CompanyLocationLink, Location, LocationCreate, Road, RoutePublic
     )
 from .. import crud
+from ..security import hash_password
+from .login import Role, authenticate_user_by_token
 
 
-router = APIRouter(prefix="/companies", tags=["companies"])
+router = APIRouter(prefix="/companies", tags=["system"])
+
+
+def authorize(roles: list):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            http_authorization_exception = HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Not authorized",
+                        headers={"WWW-Authenticate": "Bearer"}
+                        )
+            user = kwargs.get("current_user")
+            user_role, user_id = user.split(":")
+            if user_role not in roles:
+                raise http_authorization_exception
+            if user_role == Role.COMPANY:
+                company_id = str(kwargs.get("company_id"))
+                if user_id != company_id:
+                    raise http_authorization_exception
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 @router.post("/create/", response_model=CompanyPublicDetailed)
+@authorize(roles=[Role.ADMIN])
 async def create_company(
-        company: CompanyCreate, session: Session = Depends(get_session)):
+        company: CompanyCreate,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)):
+    hashed_password = hash_password(password=company.password)
+    extra_data = {"hashed_password": hashed_password}
     # Map to Company
-    db_company = Company.model_validate(company)
+    db_company = Company.model_validate(company, update=extra_data)
     validate_email(session=session, email=db_company.email)
     return crud.create_db_object(session=session, db_object=db_company)
 
 
 @router.get("/", response_model=list[CompanyPublic])
+@authorize(roles=[Role.ADMIN])
 async def get_companies(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     return crud.get_db_objects(
         session=session, db_class=Company, skip=skip, limit=limit)
 
 
-@router.get("/{company_id}", response_model=CompanyPublicDetailed)
+@router.get("/{company_id}", response_model=CompanyPublicDetailed,
+            tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def get_company(
-        company_id: int, session: Session = Depends(get_session)):
+        company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
     return db_company
 
 
-@router.patch("/{company_id}", response_model=CompanyPublic)
+@router.patch("/{company_id}", response_model=CompanyPublic,
+              tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def update_company(
         company_id: int, company: CompanyUpdate,
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
     update_data = company.model_dump(exclude_unset=True)
-    if update_data.get("email"):
-        validate_email(session=session, email=update_data.get("email"))
+    if "email" in update_data:
+        validate_email(session=session, email=update_data["email"])
+    if "password" in update_data:
+        hashed_password = hash_password(password=update_data["password"])
+        update_data.update({"hashed_password": hashed_password})
     return crud.update_db_object(
         session=session, db_object=db_company, update_data=update_data)
 
 
 @router.delete("/{company_id}")
+@authorize(roles=[Role.ADMIN])
 async def delete_company(
-        company_id: int, session: Session = Depends(get_session)):
+        company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
     crud.delete_db_object(session=session, db_object=db_company)
     return {"ok": True}
@@ -67,8 +112,10 @@ async def delete_company(
 
 @router.post("/{company_id}/waste-types/assign/",
              response_model=CompanyPublicDetailed)
+@authorize(roles=[Role.ADMIN])
 async def assign_company_waste_type(
         company_id: int, waste_link: CompanyWasteLinkCreate,
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
@@ -93,10 +140,12 @@ async def assign_company_waste_type(
 
 
 @router.patch("/{company_id}/waste-types/{waste_id}/amount/",
-              response_model=CompanyWasteLinkPublic)
+              response_model=CompanyWasteLinkPublic, tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def update_company_waste_amount(
         company_id: int, waste_id: int,
         amount: Annotated[int, Body(embed=True, ge=0)],
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     # Company validation
@@ -108,16 +157,23 @@ async def update_company_waste_amount(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Amount can not be bigger than max amount"
             )
+    if amount < db_waste_link.amount:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can not decrease amount without unloading"
+            )
     update_data = {"amount": amount}
     return crud.update_db_object(
         session=session, db_object=db_waste_link, update_data=update_data)
 
 
 @router.patch("/{company_id}/waste-types/{waste_id}/max-amount/",
-              response_model=CompanyWasteLinkPublic)
+              response_model=CompanyWasteLinkPublic, tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def update_company_waste_max_amount(
         company_id: int, waste_id: int,
         max_amount: Annotated[int, Body(embed=True, ge=0)],
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     # Company validation
@@ -135,14 +191,21 @@ async def update_company_waste_max_amount(
 
 
 @router.delete("/{company_id}/waste-types/{waste_id}")
+@authorize(roles=[Role.ADMIN])
 async def delete_company_waste_type(
         company_id: int, waste_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     # Company validation
     get_db_company_by_id(session=session, company_id=company_id)
     db_waste_link = get_db_company_waste_link(
         session=session, company_id=company_id, waste_id=waste_id)
+    if db_waste_link.amount != 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Can not delete waste type if amount not 0"
+            )
     crud.delete_db_object(
         session=session, db_object=db_waste_link)
     return {"ok": True}
@@ -150,8 +213,10 @@ async def delete_company_waste_type(
 
 @router.post("/{company_id}/location/assign/",
              response_model=CompanyPublicDetailed)
+@authorize(roles=[Role.ADMIN])
 async def assign_company_location(
         company_id: int, location: LocationCreate,
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session),
         fake_db_session: Session = Depends(get_fake_db_session)
         ):
@@ -212,12 +277,19 @@ async def assign_company_location(
     return db_company
 
 
-@router.get("/{company_id}/optimal-route/", response_model=list[RoutePublic])
+@router.get("/{company_id}/optimal-route/", response_model=list[RoutePublic],
+            tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def get_optimal_route(
         company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company")
     routes = []
     for company_waste_link in db_company.waste_links:
         route = optimal_route(
