@@ -14,6 +14,7 @@ class CompanyBase(SQLModel):
 class Company(CompanyBase,  table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: EmailStr = Field(sa_type=AutoString, unique=True, index=True)
+    hashed_password: str = Field()
 
     waste_links: list["CompanyWasteLink"] = Relationship(
         back_populates="company",
@@ -25,6 +26,7 @@ class Company(CompanyBase,  table=True):
 
 class CompanyCreate(CompanyBase):
     email: EmailStr
+    password: str
 
 
 class CompanyPublic(CompanyBase):
@@ -41,6 +43,7 @@ class CompanyPublicDetailed(CompanyPublic):
 class CompanyUpdate(SQLModel):
     name: str | None = None
     email: EmailStr | None = None
+    password: str | None = None
 
 
 """
@@ -55,6 +58,7 @@ class StorageBase(SQLModel):
 class Storage(StorageBase,  table=True):
     id: int | None = Field(default=None, primary_key=True)
     email: EmailStr = Field(sa_type=AutoString, unique=True, index=True)
+    hashed_password: str = Field()
 
     waste_links: list["StorageWasteLink"] = Relationship(
         back_populates="storage",
@@ -66,6 +70,7 @@ class Storage(StorageBase,  table=True):
 
 class StorageCreate(StorageBase):
     email: EmailStr
+    password: str
 
 
 class StoragePublic(StorageBase):
@@ -82,6 +87,7 @@ class StoragePublicDetailed(StoragePublic):
 class StorageUpdate(SQLModel):
     name: str | None = None
     email: EmailStr | None = None
+    password: str | None = None
 
 
 """
@@ -325,3 +331,21 @@ class Route(RouteBase):
 class RoutePublic(RouteBase):
     waste: WastePublic
     route_history: list[StoragePublic]
+
+
+"""
+#################### Admin models ####################
+"""
+
+
+class AdminBase(SQLModel):
+    email: EmailStr = Field(sa_type=AutoString, unique=True, index=True)
+
+
+class Admin(AdminBase, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    hashed_password: str = Field()
+
+
+class AdminPublic(AdminBase):
+    pass
