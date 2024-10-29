@@ -5,13 +5,16 @@ from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
 from sqlmodel import Session
 
 from .waste import get_db_waste_by_id
-from ..dependencies import get_session, get_fake_db_session
-from ..models import (
-    Storage, StoragePublic, StoragePublicDetailed,
-    StorageCreate, StorageUpdate,
-    StorageWasteLink, StorageWasteLinkPublic, StorageWasteLinkCreate,
-    StorageLocationLink, Location, LocationCreate, Road
+from .locations import create_roads
+from ..database import get_session, get_fake_db_session
+from ..models.storage import (
+    Storage, StoragePublic, StoragePublicDetailed, StorageCreate,
+    StorageUpdate
     )
+from ..models.storagewastelink import (
+    StorageWasteLink, StorageWasteLinkPublic, StorageWasteLinkCreate)
+from ..models.storagelocationlink import StorageLocationLink
+from ..models.location import Location, LocationCreate
 from .. import crud
 from ..security import hash_password
 from .login import Role, authenticate_user_by_token
@@ -151,15 +154,15 @@ async def update_storage_waste_amount(
     get_db_storage_by_id(session=session, storage_id=storage_id)
     db_waste_link = get_db_storage_waste_link(
         session=session, storage_id=storage_id, waste_id=waste_id)
-    if amount > db_waste_link.max_amount:
+    # if amount > db_waste_link.max_amount:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_400_BAD_REQUEST,
+    #         detail="Amount can not be bigger than max amount"
+    #         )
+    if amount > db_waste_link.amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Amount can not be bigger than max amount"
-            )
-    if amount < db_waste_link.amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Can not decrease amount without unloading"
+            detail="Can not increase amount without recieving from company"
             )
     update_data = {"amount": amount}
     return crud.update_db_object(
@@ -238,41 +241,20 @@ async def assign_storage_location(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Location with that name does not exist")
-    # Check if location already assigned
+    # Check if another location already assigned to the storage
     if db_storage.location_link:
         crud.delete_db_object(
             session=session, db_object=db_storage.location_link.location)
-    # Create location link
+    # Create location and location link
     db_location = crud.create_db_object(session=session, db_object=db_location)
     db_location_link = StorageLocationLink(
         storage=db_storage, location=db_location)
     crud.create_db_object(session=session, db_object=db_location_link)
-    # Get all roads for that location from fake db
-    roads_from = location_in_fake_db.roads_from
-    roads_to = location_in_fake_db.roads_to
-    # Add only roads to locations that exist in db (assigned to objects)
-    for road in roads_from:
-        db_connected_location = crud.get_db_object_by_field(
-            session=session, db_table=Location,
-            field="name", value=road.location_to.name
+    # Create roads, that connects only locations in db
+    create_roads(
+        session=session, location_in_fake_db=location_in_fake_db,
+        db_location=db_location
         )
-        if db_connected_location:
-            db_road = Road(location_from=db_location,
-                           location_to=db_connected_location,
-                           distance=road.distance
-                           )
-            crud.create_db_object(session=session, db_object=db_road)
-    for road in roads_to:
-        db_connected_location = crud.get_db_object_by_field(
-            session=session, db_table=Location,
-            field="name", value=road.location_from.name
-        )
-        if db_connected_location:
-            db_road = Road(location_from=db_connected_location,
-                           location_to=db_location,
-                           distance=road.distance
-                           )
-            crud.create_db_object(session=session, db_object=db_road)
     return db_storage
 
 

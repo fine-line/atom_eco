@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
-from ..dependencies import get_session, get_fake_db_session
-from ..models import Location, LocationPublic, LocationPublicWithRoad
+from ..database import get_session, get_fake_db_session
+from ..models.location import Location, LocationPublic, LocationPublicWithRoad
+from ..models.road import Road
 from .. import crud
 from .login import Role, authenticate_user_by_token, authorize
 
@@ -67,3 +68,35 @@ async def delete_location(
             status_code=status.HTTP_404_NOT_FOUND, detail="Location not found")
     crud.delete_db_object(session=session, db_object=db_location)
     return {"ok": True}
+
+
+def create_roads(
+        session: Session, location_in_fake_db: Location,
+        db_location: Location
+        ):
+    # Get all roads for that location from fake db
+    roads_from = location_in_fake_db.roads_from
+    roads_to = location_in_fake_db.roads_to
+    # Add only roads to locations that exist in db (assigned to objects)
+    for road in roads_from:
+        db_connected_location = crud.get_db_object_by_field(
+            session=session, db_table=Location,
+            field="name", value=road.location_to.name
+        )
+        if db_connected_location:
+            db_road = Road(location_from=db_location,
+                           location_to=db_connected_location,
+                           distance=road.distance
+                           )
+            crud.create_db_object(session=session, db_object=db_road)
+    for road in roads_to:
+        db_connected_location = crud.get_db_object_by_field(
+            session=session, db_table=Location,
+            field="name", value=road.location_from.name
+        )
+        if db_connected_location:
+            db_road = Road(location_from=db_connected_location,
+                           location_to=db_location,
+                           distance=road.distance
+                           )
+            crud.create_db_object(session=session, db_object=db_road)

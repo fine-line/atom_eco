@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
-from ..dependencies import get_session
-from ..models import Waste, WasteCreate, WastePublic, WasteUpdate
+from ..database import get_session
+from ..models.waste import Waste, WasteCreate, WastePublic, WasteUpdate
 from .. import crud
 from .login import Role, authenticate_user_by_token, authorize
 
