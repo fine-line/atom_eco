@@ -16,7 +16,7 @@ from ..security import (
 from ..config import Settings, get_settings
 
 
-router = APIRouter(prefix="/system")
+router = APIRouter(prefix="/login")
 
 
 class Role(StrEnum):
@@ -45,7 +45,7 @@ def authenticate_user_by_password(
 
 def authenticate_user_by_token(
         access_token: Annotated[str, Depends(
-            OAuth2PasswordBearer(tokenUrl="api/v1/system/token"))],
+            OAuth2PasswordBearer(tokenUrl="api/v1/login/token"))],
         settings: Settings = Depends(get_settings)
         ):
     subject = verify_access_token(access_token=access_token, settings=settings)

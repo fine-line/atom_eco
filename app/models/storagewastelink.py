@@ -28,3 +28,8 @@ class StorageWasteLinkPublic(StorageWasteLinkBase):
 
 class StorageWasteLinkCreate(StorageWasteLinkBase):
     pass
+
+
+class StorageWasteLinkUpdate(SQLModel):
+    amount: int | None = Field(default=None, ge=0)
+    max_amount: int | None = Field(default=None, ge=0)

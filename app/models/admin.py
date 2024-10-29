@@ -13,3 +13,8 @@ class Admin(AdminBase, table=True):
 
 class AdminPublic(AdminBase):
     pass
+
+
+class AdminUpdate(SQLModel):
+    email: EmailStr | None = None
+    password: str | None = None

@@ -4,6 +4,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # App info
+    version: str
+    docs_url: str
     # Admin settings
     admin_email: str
     admin_password: str
