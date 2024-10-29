@@ -6,11 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlmodel import Session
 
-from ..dependencies import get_session
-from ..models import Company, Storage, Admin
+from ..database import get_session
+from ..models.company import Company
+from ..models.storage import Storage
+from ..models.admin import Admin
 from .. import crud
 from ..security import (
     Token, valid_password, create_access_token, verify_access_token)
+from ..config import Settings, get_settings
 
 
 router = APIRouter(prefix="/system")
@@ -40,9 +43,12 @@ def authenticate_user_by_password(
     return db_object
 
 
-def authenticate_user_by_token(access_token: Annotated[str, Depends(
-            OAuth2PasswordBearer(tokenUrl="api/v1/system/token"))]):
-    subject = verify_access_token(access_token=access_token)
+def authenticate_user_by_token(
+        access_token: Annotated[str, Depends(
+            OAuth2PasswordBearer(tokenUrl="api/v1/system/token"))],
+        settings: Settings = Depends(get_settings)
+        ):
+    subject = verify_access_token(access_token=access_token, settings=settings)
     if not subject:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,7 +79,8 @@ def authorize(roles: list):
              tags=["companies", "storages", "system"])
 async def login_for_access_token(
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-        session: Session = Depends(get_session)
+        session: Session = Depends(get_session),
+        settings: Settings = Depends(get_settings)
         ):
     username, password = form_data.username, form_data.password
     db_object = authenticate_user_by_password(
@@ -81,7 +88,7 @@ async def login_for_access_token(
     role = db_object.__class__.__name__
     id = str(db_object.id)
     subject = ":".join([role, id])
-    access_token = create_access_token(subject=subject)
+    access_token = create_access_token(subject=subject, settings=settings)
     return access_token
 
 

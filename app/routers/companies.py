@@ -5,14 +5,18 @@ from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
 from sqlmodel import Session
 
 from .waste import get_db_waste_by_id
-from .optimal_route import optimal_route
-from ..dependencies import get_session, get_fake_db_session
-from ..models import (
-    Company, CompanyPublic, CompanyPublicDetailed,
-    CompanyCreate, CompanyUpdate,
-    CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate,
-    CompanyLocationLink, Location, LocationCreate, Road, RoutePublic
+from .locations import create_roads
+from ..business_logic.optimal_route import find_optimal_route
+from ..database import get_session, get_fake_db_session
+from ..models.company import (
+    Company, CompanyPublic, CompanyPublicDetailed, CompanyCreate,
+    CompanyUpdate
     )
+from ..models.companywastelink import (
+    CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate)
+from ..models.companylocationlink import CompanyLocationLink
+from ..models.location import Location, LocationCreate
+from ..models.route import RoutePublic
 from .. import crud
 from ..security import hash_password
 from .login import Role, authenticate_user_by_token
@@ -239,41 +243,20 @@ async def assign_company_location(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Location with that name does not exist")
-    # Check if location already assigned
+    # Check if another location already assigned to the company
     if db_company.location_link:
         crud.delete_db_object(
             session=session, db_object=db_company.location_link.location)
-    # Create location link
+    # Create location and location link
     db_location = crud.create_db_object(session=session, db_object=db_location)
     db_location_link = CompanyLocationLink(
         company=db_company, location=db_location)
     crud.create_db_object(session=session, db_object=db_location_link)
-    # Get all roads for that location from fake db
-    roads_from = location_in_fake_db.roads_from
-    roads_to = location_in_fake_db.roads_to
-    # Add only roads to locations that exist in db (assigned to objects)
-    for road in roads_from:
-        db_connected_location = crud.get_db_object_by_field(
-            session=session, db_table=Location,
-            field="name", value=road.location_to.name
+    # Create roads, that connects only locations in db
+    create_roads(
+        session=session, location_in_fake_db=location_in_fake_db,
+        db_location=db_location
         )
-        if db_connected_location:
-            db_road = Road(location_from=db_location,
-                           location_to=db_connected_location,
-                           distance=road.distance
-                           )
-            crud.create_db_object(session=session, db_object=db_road)
-    for road in roads_to:
-        db_connected_location = crud.get_db_object_by_field(
-            session=session, db_table=Location,
-            field="name", value=road.location_from.name
-        )
-        if db_connected_location:
-            db_road = Road(location_from=db_connected_location,
-                           location_to=db_location,
-                           distance=road.distance
-                           )
-            crud.create_db_object(session=session, db_object=db_road)
     return db_company
 
 
@@ -292,7 +275,7 @@ async def get_optimal_route(
                 detail="Location is not assigned to the company")
     routes = []
     for company_waste_link in db_company.waste_links:
-        route = optimal_route(
+        route = find_optimal_route(
             company=db_company, company_waste_link=company_waste_link)
         if not route:
             raise HTTPException(

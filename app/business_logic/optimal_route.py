@@ -1,7 +1,10 @@
-from ..models import Company, Location, CompanyWasteLink, Route
+from ..models.company import Company
+from ..models.location import Location
+from ..models.companywastelink import CompanyWasteLink
+from ..models.route import Route
 
 
-def optimal_route(
+def find_optimal_route(
         company: Company, company_waste_link: CompanyWasteLink
         ) -> Route | None:
     routes_to_explore = set()
