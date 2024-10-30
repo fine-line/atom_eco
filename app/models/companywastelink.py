@@ -28,3 +28,8 @@ class CompanyWasteLinkPublic(CompanyWasteLinkBase):
 
 class CompanyWasteLinkCreate(CompanyWasteLinkBase):
     pass
+
+
+class CompanyWasteLinkUpdate(SQLModel):
+    amount: int | None = Field(default=None, ge=0)
+    max_amount: int | None = Field(default=None, ge=0)

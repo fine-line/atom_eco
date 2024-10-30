@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from contextlib import asynccontextmanager
-from .routers import companies, login, storages, waste, locations
+from .routers import companies, login, storages, waste, locations, admin
 from .database import create_db_and_tables
+from .config import Settings, get_settings
 
 
 @asynccontextmanager
@@ -18,11 +19,15 @@ app = FastAPI(
 
 app.include_router(router=login.router, prefix="/v1")
 app.include_router(router=waste.router, prefix="/v1")
-app.include_router(router=locations.router, prefix="/v1")
 app.include_router(router=companies.router, prefix="/v1")
 app.include_router(router=storages.router, prefix="/v1")
+app.include_router(router=locations.router, prefix="/v1")
+app.include_router(router=admin.router, prefix="/v1")
 
 
 @app.get("/")
-async def root():
-    return {"version": "1", "docs url": "/docs"}
+async def info(settings: Settings = Depends(get_settings)):
+    return {
+            "version": settings.version,
+            "docs url": settings.docs_url
+            }

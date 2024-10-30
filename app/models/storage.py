@@ -45,3 +45,9 @@ class StorageUpdate(SQLModel):
     name: str | None = None
     email: EmailStr | None = None
     password: str | None = None
+
+
+class StoragePublicCompany(StorageBase):
+    id: int
+    distance: int | None = None
+    waste_links: list["StorageWasteLinkPublic"]

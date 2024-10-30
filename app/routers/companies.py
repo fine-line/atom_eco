@@ -1,25 +1,31 @@
-from typing import Annotated
 from functools import wraps
 
-from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
 from .waste import get_db_waste_by_id
 from .locations import create_roads
-from ..business_logic.optimal_route import find_optimal_route
+from ..business_logic.optimal_route import (
+    find_optimal_unload_route, unload_company, partially_unload_company,
+    find_connected_storages, find_optimal_storage_route
+    )
 from ..database import get_session, get_fake_db_session
 from ..models.company import (
     Company, CompanyPublic, CompanyPublicDetailed, CompanyCreate,
     CompanyUpdate
     )
+from .. models.storage import StoragePublic, StoragePublicCompany
 from ..models.companywastelink import (
-    CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate)
+    CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate,
+    CompanyWasteLinkUpdate
+    )
 from ..models.companylocationlink import CompanyLocationLink
 from ..models.location import Location, LocationCreate
 from ..models.route import RoutePublic
 from .. import crud
 from ..security import hash_password
 from .login import Role, authenticate_user_by_token
+from .storages import get_db_storage_by_id
 
 
 router = APIRouter(prefix="/companies", tags=["system"])
@@ -108,7 +114,8 @@ async def update_company(
 async def delete_company(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+        ):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
     crud.delete_db_object(session=session, db_object=db_company)
     return {"ok": True}
@@ -143,12 +150,11 @@ async def assign_company_waste_type(
     return db_company
 
 
-@router.patch("/{company_id}/waste-types/{waste_id}/amount/",
+@router.patch("/{company_id}/waste-types/{waste_id}",
               response_model=CompanyWasteLinkPublic, tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def update_company_waste_amount(
-        company_id: int, waste_id: int,
-        amount: Annotated[int, Body(embed=True, ge=0)],
+async def update_company_waste_link(
+        company_id: int, waste_id: int, waste_link: CompanyWasteLinkUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
@@ -156,40 +162,19 @@ async def update_company_waste_amount(
     get_db_company_by_id(session=session, company_id=company_id)
     db_waste_link = get_db_company_waste_link(
         session=session, company_id=company_id, waste_id=waste_id)
-    if amount > db_waste_link.max_amount:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Amount can not be bigger than max amount"
-            )
+    update_data = waste_link.model_dump(exclude_unset=True)
+    amount = update_data.get("amount", db_waste_link.amount)
+    max_amount = update_data.get("max_amount", db_waste_link.max_amount)
     if amount < db_waste_link.amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can not decrease amount without unloading"
             )
-    update_data = {"amount": amount}
-    return crud.update_db_object(
-        session=session, db_object=db_waste_link, update_data=update_data)
-
-
-@router.patch("/{company_id}/waste-types/{waste_id}/max-amount/",
-              response_model=CompanyWasteLinkPublic, tags=["companies"])
-@authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def update_company_waste_max_amount(
-        company_id: int, waste_id: int,
-        max_amount: Annotated[int, Body(embed=True, ge=0)],
-        current_user: str = Depends(authenticate_user_by_token),
-        session: Session = Depends(get_session)
-        ):
-    # Company validation
-    get_db_company_by_id(session=session, company_id=company_id)
-    db_waste_link = get_db_company_waste_link(
-        session=session, company_id=company_id, waste_id=waste_id)
-    if max_amount < db_waste_link.amount:
+    if amount > max_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Max amount can not be smaller than amount"
+            detail="Amount can not be bigger than max amount"
             )
-    update_data = {"max_amount": max_amount}
     return crud.update_db_object(
         session=session, db_object=db_waste_link, update_data=update_data)
 
@@ -233,7 +218,8 @@ async def assign_company_location(
     if location_in_db:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Location with that name already occupied")
+            detail="Location with that name already occupied"
+            )
     # Check if location exist in fake db
     location_in_fake_db = crud.get_db_object_by_field(
         session=fake_db_session, db_table=Location,
@@ -242,7 +228,8 @@ async def assign_company_location(
     if not location_in_fake_db:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Location with that name does not exist")
+            detail="Location with that name does not exist"
+            )
     # Check if another location already assigned to the company
     if db_company.location_link:
         crud.delete_db_object(
@@ -260,10 +247,11 @@ async def assign_company_location(
     return db_company
 
 
-@router.get("/{company_id}/optimal-route/", response_model=list[RoutePublic],
-            tags=["companies"])
+@router.get("/{company_id}/waste-types/optimal-route/",
+            response_model=RoutePublic, tags=["companies"]
+            )
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_optimal_route(
+async def get_optimal_route_for_all_waste_types(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -272,17 +260,182 @@ async def get_optimal_route(
     if not db_company.location_link:
         raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Location is not assigned to the company")
-    routes = []
-    for company_waste_link in db_company.waste_links:
-        route = find_optimal_route(
-            company=db_company, company_waste_link=company_waste_link)
-        if not route:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Route not found")
-        routes.append(route)
-    return routes
+                detail="Location is not assigned to the company"
+                )
+    if not db_company.waste_links:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No waste type is assigned to the company"
+                )
+    if sum([waste_link.amount for waste_link in db_company.waste_links]) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No waste to unload"
+            )
+    route = find_optimal_unload_route(
+        company=db_company, company_waste_links=db_company.waste_links,
+        partial_unload=False
+        )
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
+    return route
+
+
+@router.post("/{company_id}/waste-types/unload/", tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def unload_all_waste_types(
+        company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    if not db_company.waste_links:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="No waste type is assigned to the company"
+                )
+    if sum([waste_link.amount for waste_link in db_company.waste_links]) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No waste to unload"
+            )
+    route = find_optimal_unload_route(
+        company=db_company, company_waste_links=db_company.waste_links,
+        partial_unload=False
+        )
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found"
+            )
+    # Transfer all waste types to the last storage
+    unload_company(session=session, route=route, company=db_company)
+    return {"ok": True}
+
+
+@router.get("/{company_id}/waste-types/{waste_id}/optimal-route/",
+            response_model=RoutePublic, tags=["companies"]
+            )
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def get_optimal_route_for_waste_type(
+        company_id: int, waste_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    db_waste_link = get_db_company_waste_link(
+        session=session, company_id=company_id, waste_id=waste_id)
+    if db_waste_link.amount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No waste to unload"
+            )
+    route = find_optimal_unload_route(
+        company=db_company, company_waste_links=[db_waste_link],
+        partial_unload=True
+        )
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Route not found")
+    return route
+
+
+@router.post("/{company_id}/waste-types/{waste_id}/unload/",
+             tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def unload_waste_type(
+        company_id: int, waste_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    db_waste_link = get_db_company_waste_link(
+        session=session, company_id=company_id, waste_id=waste_id)
+    if db_waste_link.amount == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No waste to unload"
+            )
+    route = find_optimal_unload_route(
+        company=db_company, company_waste_links=[db_waste_link],
+        partial_unload=True
+        )
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found"
+            )
+    partially_unload_company(
+        session=session, route=route, company=db_company,
+        company_waste_link=db_waste_link
+        )
+    return {"ok": True}
+
+
+@router.get("/{company_id}/storages/",
+            response_model=list[StoragePublic],
+            tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def get_connected_storages(
+        company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    storages = find_connected_storages(company=db_company)
+    return storages
+
+
+@router.get("/{company_id}/storages/{storage_id}",
+            response_model=StoragePublicCompany, tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def get_storage(
+        company_id: int, storage_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    db_storage = get_db_storage_by_id(session=session, storage_id=storage_id)
+    if not db_storage.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the storage"
+                )
+    route = find_optimal_storage_route(company=db_company, storage=db_storage)
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found"
+            )
+    output = StoragePublicCompany.model_validate(db_storage)
+    output.distance = route.distance
+    return output
 
 
 # Helper functions

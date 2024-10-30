@@ -27,6 +27,9 @@ class Location(LocationBase, table=True):
         back_populates="location",
         cascade_delete=True)
 
+    def __hash__(self):
+        return hash(self.id)
+
 
 class LocationCreate(LocationBase):
     pass

@@ -1,7 +1,6 @@
-from typing import Annotated
 from functools import wraps
 
-from fastapi import APIRouter, Depends, Body, Query, HTTPException, status
+from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
 from .waste import get_db_waste_by_id
@@ -12,7 +11,9 @@ from ..models.storage import (
     StorageUpdate
     )
 from ..models.storagewastelink import (
-    StorageWasteLink, StorageWasteLinkPublic, StorageWasteLinkCreate)
+    StorageWasteLink, StorageWasteLinkPublic, StorageWasteLinkCreate,
+    StorageWasteLinkUpdate
+    )
 from ..models.storagelocationlink import StorageLocationLink
 from ..models.location import Location, LocationCreate
 from .. import crud
@@ -60,7 +61,7 @@ async def create_storage(
 
 
 @router.get("/", response_model=list[StoragePublic])
-@authorize(roles=[Role.ADMIN, Role.COMPANY])
+@authorize(roles=[Role.ADMIN])
 async def get_storages(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
@@ -72,7 +73,7 @@ async def get_storages(
 
 
 @router.get("/{storage_id}", response_model=StoragePublicDetailed,
-            tags=["storages", "companies"])
+            tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
 async def get_storage(
         storage_id: int,
@@ -106,7 +107,8 @@ async def update_storage(
 async def delete_storage(
         storage_id: int,
         current_user: str = Depends(authenticate_user_by_token),
-        session: Session = Depends(get_session)):
+        session: Session = Depends(get_session)
+        ):
     db_storage = get_db_storage_by_id(session=session, storage_id=storage_id)
     crud.delete_db_object(session=session, db_object=db_storage)
     return {"ok": True}
@@ -141,12 +143,11 @@ async def assign_storage_waste_type(
     return db_storage
 
 
-@router.patch("/{storage_id}/waste-types/{waste_id}/amount/",
+@router.patch("/{storage_id}/waste-types/{waste_id}",
               response_model=StorageWasteLinkPublic, tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
-async def update_storage_waste_amount(
-        storage_id: int, waste_id: int,
-        amount: Annotated[int, Body(embed=True, ge=0)],
+async def update_storage_waste_link(
+        storage_id: int, waste_id: int, waste_link: StorageWasteLinkUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
         ):
@@ -154,40 +155,19 @@ async def update_storage_waste_amount(
     get_db_storage_by_id(session=session, storage_id=storage_id)
     db_waste_link = get_db_storage_waste_link(
         session=session, storage_id=storage_id, waste_id=waste_id)
-    # if amount > db_waste_link.max_amount:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_400_BAD_REQUEST,
-    #         detail="Amount can not be bigger than max amount"
-    #         )
+    update_data = waste_link.model_dump(exclude_unset=True)
+    amount = update_data.get("amount", db_waste_link.amount)
+    max_amount = update_data.get("max_amount", db_waste_link.max_amount)
     if amount > db_waste_link.amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Can not increase amount without recieving from company"
             )
-    update_data = {"amount": amount}
-    return crud.update_db_object(
-        session=session, db_object=db_waste_link, update_data=update_data)
-
-
-@router.patch("/{storage_id}/waste-types/{waste_id}/max-amount/",
-              response_model=StorageWasteLinkPublic, tags=["storages"])
-@authorize(roles=[Role.ADMIN, Role.STORAGE])
-async def update_storage_waste_max_amount(
-        storage_id: int, waste_id: int,
-        max_amount: Annotated[int, Body(embed=True, ge=0)],
-        current_user: str = Depends(authenticate_user_by_token),
-        session: Session = Depends(get_session)
-        ):
-    # Storage validation
-    get_db_storage_by_id(session=session, storage_id=storage_id)
-    db_waste_link = get_db_storage_waste_link(
-        session=session, storage_id=storage_id, waste_id=waste_id)
-    if max_amount < db_waste_link.amount:
+    if amount > max_amount:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Max amount can not be smaller than amount"
+            detail="Amount can not be bigger than max amount"
             )
-    update_data = {"max_amount": max_amount}
     return crud.update_db_object(
         session=session, db_object=db_waste_link, update_data=update_data)
 
@@ -231,7 +211,8 @@ async def assign_storage_location(
     if location_in_db:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Location with that name already occupied")
+            detail="Location with that name already occupied"
+            )
     # Check if location exist in fake db
     location_in_fake_db = crud.get_db_object_by_field(
         session=fake_db_session, db_table=Location,
@@ -240,7 +221,8 @@ async def assign_storage_location(
     if not location_in_fake_db:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Location with that name does not exist")
+            detail="Location with that name does not exist"
+            )
     # Check if another location already assigned to the storage
     if db_storage.location_link:
         crud.delete_db_object(
