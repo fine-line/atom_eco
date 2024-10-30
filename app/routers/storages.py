@@ -60,8 +60,8 @@ async def create_storage(
     return crud.create_db_object(session=session, db_object=db_storage)
 
 
-@router.get("/", response_model=list[StoragePublic], tags=["companies"])
-@authorize(roles=[Role.ADMIN, Role.COMPANY])
+@router.get("/", response_model=list[StoragePublic])
+@authorize(roles=[Role.ADMIN])
 async def get_storages(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
@@ -73,7 +73,7 @@ async def get_storages(
 
 
 @router.get("/{storage_id}", response_model=StoragePublicDetailed,
-            tags=["storages", "companies"])
+            tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
 async def get_storage(
         storage_id: int,
@@ -145,7 +145,7 @@ async def assign_storage_waste_type(
 
 @router.patch("/{storage_id}/waste-types/{waste_id}",
               response_model=StorageWasteLinkPublic, tags=["storages"])
-@authorize(roles=[Role.ADMIN, Role.COMPANY])
+@authorize(roles=[Role.ADMIN, Role.STORAGE])
 async def update_storage_waste_link(
         storage_id: int, waste_id: int, waste_link: StorageWasteLinkUpdate,
         current_user: str = Depends(authenticate_user_by_token),

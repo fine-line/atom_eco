@@ -6,12 +6,15 @@ from sqlmodel import Session
 from .waste import get_db_waste_by_id
 from .locations import create_roads
 from ..business_logic.optimal_route import (
-    find_optimal_route, unload_company, partially_unload_company)
+    find_optimal_unload_route, unload_company, partially_unload_company,
+    find_connected_storages, find_optimal_storage_route
+    )
 from ..database import get_session, get_fake_db_session
 from ..models.company import (
     Company, CompanyPublic, CompanyPublicDetailed, CompanyCreate,
     CompanyUpdate
     )
+from .. models.storage import StoragePublic, StoragePublicCompany
 from ..models.companywastelink import (
     CompanyWasteLink, CompanyWasteLinkPublic, CompanyWasteLinkCreate,
     CompanyWasteLinkUpdate
@@ -22,6 +25,7 @@ from ..models.route import RoutePublic
 from .. import crud
 from ..security import hash_password
 from .login import Role, authenticate_user_by_token
+from .storages import get_db_storage_by_id
 
 
 router = APIRouter(prefix="/companies", tags=["system"])
@@ -268,7 +272,7 @@ async def get_optimal_route_for_all_waste_types(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No waste to unload"
             )
-    route = find_optimal_route(
+    route = find_optimal_unload_route(
         company=db_company, company_waste_links=db_company.waste_links,
         partial_unload=False
         )
@@ -301,7 +305,7 @@ async def unload_all_waste_types(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No waste to unload"
             )
-    route = find_optimal_route(
+    route = find_optimal_unload_route(
         company=db_company, company_waste_links=db_company.waste_links,
         partial_unload=False
         )
@@ -337,7 +341,7 @@ async def get_optimal_route_for_waste_type(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No waste to unload"
             )
-    route = find_optimal_route(
+    route = find_optimal_unload_route(
         company=db_company, company_waste_links=[db_waste_link],
         partial_unload=True
         )
@@ -368,7 +372,7 @@ async def unload_waste_type(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No waste to unload"
             )
-    route = find_optimal_route(
+    route = find_optimal_unload_route(
         company=db_company, company_waste_links=[db_waste_link],
         partial_unload=True
         )
@@ -382,6 +386,56 @@ async def unload_waste_type(
         company_waste_link=db_waste_link
         )
     return {"ok": True}
+
+
+@router.get("/{company_id}/storages/",
+            response_model=list[StoragePublic],
+            tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def get_connected_storages(
+        company_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    storages = find_connected_storages(company=db_company)
+    return storages
+
+
+@router.get("/{company_id}/storages/{storage_id}",
+            response_model=StoragePublicCompany, tags=["companies"])
+@authorize(roles=[Role.ADMIN, Role.COMPANY])
+async def get_storage(
+        company_id: int, storage_id: int,
+        current_user: str = Depends(authenticate_user_by_token),
+        session: Session = Depends(get_session)
+        ):
+    db_company = get_db_company_by_id(session=session, company_id=company_id)
+    if not db_company.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the company"
+                )
+    db_storage = get_db_storage_by_id(session=session, storage_id=storage_id)
+    if not db_storage.location_link:
+        raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Location is not assigned to the storage"
+                )
+    route = find_optimal_storage_route(company=db_company, storage=db_storage)
+    if not route:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Route not found"
+            )
+    output = StoragePublicCompany.model_validate(db_storage)
+    output.distance = route.distance
+    return output
 
 
 # Helper functions

@@ -42,7 +42,7 @@ class RouteBase(SQLModel):
 
 class Route(RouteBase):
     next_location: "Location"
-    space_counters: list[SpaceCounter]
+    space_counters: list[SpaceCounter] | None = None
 
     def __lt__(self, other: "Route"):
         return self.distance < other.distance
