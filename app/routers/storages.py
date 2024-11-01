@@ -3,7 +3,7 @@ from functools import wraps
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
-from .waste import get_db_waste_by_id
+from .wastes import get_db_waste_by_id
 from .locations import create_roads
 from ..database import get_session, get_fake_db_session
 from ..models.storage import (
@@ -47,7 +47,7 @@ def authorize(roles: list):
 
 
 @router.post("/create/", response_model=StoragePublicDetailed)
-@authorize(roles=[Role.ADMIN, Role.COMPANY])
+@authorize(roles=[Role.ADMIN])
 async def create_storage(
         storage: StorageCreate,
         current_user: str = Depends(authenticate_user_by_token),
@@ -83,7 +83,7 @@ async def get_storage(
     return db_storage
 
 
-@router.patch("/{storage_id}", response_model=StoragePublic,
+@router.patch("/{storage_id}", response_model=StoragePublicDetailed,
               tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
 async def update_storage(

@@ -57,22 +57,14 @@ def create_two_way_road(
     road_1 = Road(location_from=location_from, location_to=location_to,
                   distance=distance
                   )
+    create_db_object(session=session, db_object=road_1)
     road_2 = Road(location_from=location_to, location_to=location_from,
                   distance=distance
                   )
-    create_db_object(session=session, db_object=road_1)
     create_db_object(session=session, db_object=road_2)
 
 
-def main():
-    os.remove("fake_locations_database.db")
-    sqlite_file_name = "fake_locations_database.db"
-    sqlite_url = f"sqlite:///{sqlite_file_name}"
-
-    connect_args = {"check_same_thread": False}
-    engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
-
-    SQLModel.metadata.create_all(engine)
+def generate_fake_db(session: Session):
 
     """
     Location layout
@@ -88,24 +80,37 @@ def main():
     A5--B5--C5--D5--E5
     """
 
+    locations = []
+    for i in range(5):
+        locations.append([])
+        for j in range(5):
+            location = Location(name=f"{string.ascii_uppercase[j]}{i+1}")
+            create_db_object(session=session, db_object=location)
+            locations[i].append(location)
+            if j > 0:
+                create_two_way_road(session=session,
+                                    location_from=locations[i][j-1],
+                                    location_to=locations[i][j]
+                                    )
+            if i > 0:
+                create_two_way_road(session=session,
+                                    location_from=locations[i-1][j],
+                                    location_to=locations[i][j]
+                                    )
+
+
+def main():
+    os.remove("fake_locations_database.db")
+    sqlite_file_name = "fake_locations_database.db"
+    sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+    connect_args = {"check_same_thread": False}
+    engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
+
+    SQLModel.metadata.create_all(engine)
+
     with Session(engine) as session:
-        locations = []
-        for i in range(5):
-            locations.append([])
-            for j in range(5):
-                location = Location(name=f"{string.ascii_uppercase[j]}{i+1}")
-                create_db_object(session=session, db_object=location)
-                locations[i].append(location)
-                if j > 0:
-                    create_two_way_road(session=session,
-                                        location_from=locations[i][j-1],
-                                        location_to=locations[i][j]
-                                        )
-                if i > 0:
-                    create_two_way_road(session=session,
-                                        location_from=locations[i-1][j],
-                                        location_to=locations[i][j]
-                                        )
+        generate_fake_db(session=session)
 
 
 if __name__ == "__main__":
