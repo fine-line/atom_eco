@@ -18,15 +18,10 @@ def get_session():
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
-    create_admin()
+    create_admin(engine)
 
 
-# ! move to .env
-ADMIN_EMAIL = "admin@example.com"
-ADMIN_PASSWORD = "adminpassword"
-
-
-def create_admin():
+def create_admin(engine):
     with Session(engine) as session:
         settings = get_settings()
         db_admin = session.exec(select(Admin)).first()

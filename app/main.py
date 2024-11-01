@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends
 from contextlib import asynccontextmanager
-from .routers import companies, login, storages, waste, locations, admin
+from .routers import companies, login, storages, locations, admin, wastes
 from .database import create_db_and_tables
 from .config import Settings, get_settings
 
@@ -18,7 +18,7 @@ app = FastAPI(
         is cleaning")
 
 app.include_router(router=login.router, prefix="/v1")
-app.include_router(router=waste.router, prefix="/v1")
+app.include_router(router=wastes.router, prefix="/v1")
 app.include_router(router=companies.router, prefix="/v1")
 app.include_router(router=storages.router, prefix="/v1")
 app.include_router(router=locations.router, prefix="/v1")

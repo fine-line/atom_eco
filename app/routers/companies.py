@@ -3,7 +3,7 @@ from functools import wraps
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlmodel import Session
 
-from .waste import get_db_waste_by_id
+from .wastes import get_db_waste_by_id
 from .locations import create_roads
 from ..business_logic.optimal_route import (
     find_optimal_unload_route, unload_company, partially_unload_company,
@@ -90,7 +90,7 @@ async def get_company(
     return db_company
 
 
-@router.patch("/{company_id}", response_model=CompanyPublic,
+@router.patch("/{company_id}", response_model=CompanyPublicDetailed,
               tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
 async def update_company(

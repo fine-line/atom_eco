@@ -186,14 +186,16 @@ def unload_company(session: Session, route: Route, company: Company):
             id_field_1="storage_id", value_1=storage.id,
             id_field_2="waste_id", value_2=waste.id
             )
-        crud.update_db_object(
-            session=session, db_object=storage_waste_link,
-            update_data={"amount": (storage_waste_link.amount + waste_amount)}
-            )
-        crud.update_db_object(
-            session=session, db_object=company_waste_link,
-            update_data={"amount": 0}
-            )
+        if storage_waste_link:
+            crud.update_db_object(
+                session=session, db_object=storage_waste_link,
+                update_data={"amount": (storage_waste_link.amount
+                                        + waste_amount)}
+                )
+            crud.update_db_object(
+                session=session, db_object=company_waste_link,
+                update_data={"amount": 0}
+                )
 
 
 def partially_unload_company(
