@@ -34,7 +34,7 @@ router = APIRouter(prefix="/companies", tags=["system"])
 def authorize(roles: list):
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             http_authorization_exception = HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized",
@@ -48,14 +48,14 @@ def authorize(roles: list):
                 company_id = str(kwargs.get("company_id"))
                 if user_id != company_id:
                     raise http_authorization_exception
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         return wrapper
     return decorator
 
 
 @router.post("/create/", response_model=CompanyPublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def create_company(
+def create_company(
         company: CompanyCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)):
@@ -69,7 +69,7 @@ async def create_company(
 
 @router.get("/", response_model=list[CompanyPublic])
 @authorize(roles=[Role.ADMIN])
-async def get_companies(
+def get_companies(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
         current_user: str = Depends(authenticate_user_by_token),
@@ -82,7 +82,7 @@ async def get_companies(
 @router.get("/{company_id}", response_model=CompanyPublicDetailed,
             tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_company(
+def get_company(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)):
@@ -93,7 +93,7 @@ async def get_company(
 @router.patch("/{company_id}", response_model=CompanyPublicDetailed,
               tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def update_company(
+def update_company(
         company_id: int, company: CompanyUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -111,7 +111,7 @@ async def update_company(
 
 @router.delete("/{company_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_company(
+def delete_company(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -124,7 +124,7 @@ async def delete_company(
 @router.post("/{company_id}/waste-types/assign/",
              response_model=CompanyPublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def assign_company_waste_type(
+def assign_company_waste_type(
         company_id: int, waste_link: CompanyWasteLinkCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -153,7 +153,7 @@ async def assign_company_waste_type(
 @router.patch("/{company_id}/waste-types/{waste_id}",
               response_model=CompanyWasteLinkPublic, tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def update_company_waste_link(
+def update_company_waste_link(
         company_id: int, waste_id: int, waste_link: CompanyWasteLinkUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -181,7 +181,7 @@ async def update_company_waste_link(
 
 @router.delete("/{company_id}/waste-types/{waste_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_company_waste_type(
+def delete_company_waste_type(
         company_id: int, waste_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -203,7 +203,7 @@ async def delete_company_waste_type(
 @router.post("/{company_id}/location/assign/",
              response_model=CompanyPublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def assign_company_location(
+def assign_company_location(
         company_id: int, location: LocationCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session),
@@ -251,7 +251,7 @@ async def assign_company_location(
             response_model=RoutePublic, tags=["companies"]
             )
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_optimal_route_for_all_waste_types(
+def get_optimal_route_for_all_waste_types(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -284,7 +284,7 @@ async def get_optimal_route_for_all_waste_types(
 
 @router.post("/{company_id}/waste-types/unload/", tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def unload_all_waste_types(
+def unload_all_waste_types(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -323,7 +323,7 @@ async def unload_all_waste_types(
             response_model=RoutePublic, tags=["companies"]
             )
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_optimal_route_for_waste_type(
+def get_optimal_route_for_waste_type(
         company_id: int, waste_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -354,7 +354,7 @@ async def get_optimal_route_for_waste_type(
 @router.post("/{company_id}/waste-types/{waste_id}/unload/",
              tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def unload_waste_type(
+def unload_waste_type(
         company_id: int, waste_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -392,7 +392,7 @@ async def unload_waste_type(
             response_model=list[StoragePublic],
             tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_connected_storages(
+def get_connected_storages(
         company_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -410,7 +410,7 @@ async def get_connected_storages(
 @router.get("/{company_id}/storages/{storage_id}",
             response_model=StoragePublicCompany, tags=["companies"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY])
-async def get_storage(
+def get_storage(
         company_id: int, storage_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)

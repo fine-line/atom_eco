@@ -13,7 +13,7 @@ router = APIRouter(prefix="/system", tags=["system"])
 
 @router.patch("/admin", response_model=AdminPublic)
 @authorize(roles=[Role.ADMIN])
-async def update_admin(
+def update_admin(
         admin: AdminUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)

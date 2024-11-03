@@ -12,7 +12,7 @@ router = APIRouter(prefix="/wastes", tags=["system"])
 
 @router.post("/create/", response_model=WastePublic)
 @authorize(roles=[Role.ADMIN])
-async def create_waste(
+def create_waste(
         waste: WasteCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -33,7 +33,7 @@ async def create_waste(
 @router.get("/", response_model=list[WastePublic],
             tags=["companies", "storages"])
 @authorize(roles=[Role.ADMIN, Role.COMPANY, Role.STORAGE])
-async def get_wastes(
+def get_wastes(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
         current_user: str = Depends(authenticate_user_by_token),
@@ -45,7 +45,7 @@ async def get_wastes(
 
 @router.get("/{waste_id}", response_model=WastePublic)
 @authorize(roles=[Role.ADMIN])
-async def get_waste(
+def get_waste(
         waste_id:  int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -60,7 +60,7 @@ async def get_waste(
 
 @router.patch("/{waste_id}", response_model=WastePublic)
 @authorize(roles=[Role.ADMIN])
-async def update_waste(
+def update_waste(
         waste_id: int, waste: WasteUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -78,7 +78,7 @@ async def update_waste(
 
 @router.delete("/{waste_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_waste(
+def delete_waste(
         waste_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)

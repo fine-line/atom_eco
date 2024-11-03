@@ -13,7 +13,7 @@ router = APIRouter(prefix="/locations", tags=["system"])
 
 @router.get("/", response_model=list[LocationPublic])
 @authorize(roles=[Role.ADMIN])
-async def get_locations(
+def get_locations(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
         current_user: str = Depends(authenticate_user_by_token),
@@ -25,7 +25,7 @@ async def get_locations(
 
 @router.get("/{location_id}", response_model=LocationPublicWithRoad)
 @authorize(roles=[Role.ADMIN])
-async def get_location(
+def get_location(
         location_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -40,7 +40,7 @@ async def get_location(
 
 @router.get("/available-location-names/", response_model=list[str])
 @authorize(roles=[Role.ADMIN])
-async def get_available_location_names(
+def get_available_location_names(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
         current_user: str = Depends(authenticate_user_by_token),
@@ -56,7 +56,7 @@ async def get_available_location_names(
 
 @router.delete("/{location_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_location(
+def delete_location(
         location_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)

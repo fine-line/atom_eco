@@ -4,11 +4,13 @@ from .security import hash_password
 from .config import get_settings
 
 
-sqlite_file_name = "database.db"
-sqlite_url = f"sqlite:///{sqlite_file_name}"
-
+settings = get_settings()
+user = settings.db_user
+password = settings.db_password
+service = settings.db_service
+db_url = f"postgresql+psycopg2://{user}:{password}@{service}:5432"
 connect_args = {"check_same_thread": False}
-engine = create_engine(sqlite_url, echo=False, connect_args=connect_args)
+engine = create_engine(db_url)
 
 
 def get_session():
@@ -35,13 +37,13 @@ def create_admin(engine):
 
 # Fake db connection
 
-
-fake_locations_db_file = "fake_locations_database.db"
-fake_db_url = f"sqlite:///{fake_locations_db_file}"
-
-# connect_args = {"check_same_thread": False}
-fake_db_engine = create_engine(
-    fake_db_url, echo=False, connect_args=connect_args)
+settings = get_settings()
+user = settings.fake_db_user
+password = settings.fake_db_password
+service = settings.fake_db_service
+fake_db_url = f"postgresql+psycopg2://{user}:{password}@{service}:5432"
+connect_args = {"check_same_thread": False}
+fake_db_engine = create_engine(fake_db_url)
 
 
 def get_fake_db_session():
