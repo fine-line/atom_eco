@@ -27,7 +27,7 @@ router = APIRouter(prefix="/storages", tags=["system"])
 def authorize(roles: list):
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             http_authorization_exception = HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Not authorized",
@@ -41,14 +41,14 @@ def authorize(roles: list):
                 storage_id = str(kwargs.get("storage_id"))
                 if user_id != storage_id:
                     raise http_authorization_exception
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         return wrapper
     return decorator
 
 
 @router.post("/create/", response_model=StoragePublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def create_storage(
+def create_storage(
         storage: StorageCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)):
@@ -62,7 +62,7 @@ async def create_storage(
 
 @router.get("/", response_model=list[StoragePublic])
 @authorize(roles=[Role.ADMIN])
-async def get_storages(
+def get_storages(
         skip: int = Query(default=0, ge=0),
         limit: int = Query(default=10, le=100),
         current_user: str = Depends(authenticate_user_by_token),
@@ -75,7 +75,7 @@ async def get_storages(
 @router.get("/{storage_id}", response_model=StoragePublicDetailed,
             tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
-async def get_storage(
+def get_storage(
         storage_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)):
@@ -86,7 +86,7 @@ async def get_storage(
 @router.patch("/{storage_id}", response_model=StoragePublicDetailed,
               tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
-async def update_storage(
+def update_storage(
         storage_id: int, storage: StorageUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -104,7 +104,7 @@ async def update_storage(
 
 @router.delete("/{storage_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_storage(
+def delete_storage(
         storage_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -117,7 +117,7 @@ async def delete_storage(
 @router.post("/{storage_id}/waste-types/assign/",
              response_model=StoragePublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def assign_storage_waste_type(
+def assign_storage_waste_type(
         storage_id: int, waste_link: StorageWasteLinkCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -146,7 +146,7 @@ async def assign_storage_waste_type(
 @router.patch("/{storage_id}/waste-types/{waste_id}",
               response_model=StorageWasteLinkPublic, tags=["storages"])
 @authorize(roles=[Role.ADMIN, Role.STORAGE])
-async def update_storage_waste_link(
+def update_storage_waste_link(
         storage_id: int, waste_id: int, waste_link: StorageWasteLinkUpdate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -174,7 +174,7 @@ async def update_storage_waste_link(
 
 @router.delete("/{storage_id}/waste-types/{waste_id}")
 @authorize(roles=[Role.ADMIN])
-async def delete_storage_waste_type(
+def delete_storage_waste_type(
         storage_id: int, waste_id: int,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session)
@@ -196,7 +196,7 @@ async def delete_storage_waste_type(
 @router.post("/{storage_id}/location/assign/",
              response_model=StoragePublicDetailed)
 @authorize(roles=[Role.ADMIN])
-async def assign_storage_location(
+def assign_storage_location(
         storage_id: int, location: LocationCreate,
         current_user: str = Depends(authenticate_user_by_token),
         session: Session = Depends(get_session),

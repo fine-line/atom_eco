@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     secret_key: str
     algorithm: str
     access_token_expire_minutes: int = 30
+
+    # db service name
+    db_service: str
+    # db credentials
+    db_user: str
+    db_password: str
+
+    # Fake db service name
+    fake_db_service: str
+    # Fake db credentials
+    fake_db_user: str
+    fake_db_password: str
+
     # Load from .env
     model_config = SettingsConfigDict(env_file=".env")
 

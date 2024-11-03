@@ -61,7 +61,7 @@ def authenticate_user_by_token(
 def authorize(roles: list):
     def decorator(func):
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        def wrapper(*args, **kwargs):
             user = kwargs.get("current_user")
             user_role, _ = user.split(":")
             if user_role not in roles:
@@ -70,14 +70,14 @@ def authorize(roles: list):
                         detail="Not authorized",
                         headers={"WWW-Authenticate": "Bearer"}
                         )
-            return await func(*args, **kwargs)
+            return func(*args, **kwargs)
         return wrapper
     return decorator
 
 
 @router.post("/token", response_model=Token,
              tags=["companies", "storages", "system"])
-async def login_for_access_token(
+def login_for_access_token(
         form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
         session: Session = Depends(get_session),
         settings: Settings = Depends(get_settings)
@@ -94,7 +94,7 @@ async def login_for_access_token(
 
 @router.get("/self-id", tags=["companies", "storages"], response_model=int)
 @authorize(roles=[Role.COMPANY, Role.STORAGE])
-async def get_self_id(
+def get_self_id(
         current_user: str = Depends(authenticate_user_by_token)):
     _, user_id = current_user.split(":")
     return user_id

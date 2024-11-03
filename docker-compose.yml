@@ -1,0 +1,67 @@
+services:
+  app:
+    container_name: atom_eco_app
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+      fake_db:
+        condition: service_healthy
+    volumes:
+    - ./app:/code/app:ro
+    ports:
+      - "8000:8000"
+    restart: always
+
+  db:
+    container_name: atom_eco_postgres
+    image: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  fake_db_app:
+    container_name: fake_db_app
+    build: ./fake_db_app
+    depends_on:
+      fake_db:
+        condition: service_healthy
+    environment:
+      - DB_SERVICE=${FAKE_DB_SERVICE}
+      - DB_USER=${FAKE_DB_USER}
+      - DB_PASSWORD=${FAKE_DB_PASSWORD}
+    volumes:
+    - ./fake_db_app/fake_db.py:/code/fake_db.py:ro
+
+  fake_db:
+    container_name: fake_db_postgres
+    image: postgres
+    volumes:
+      - fake_db_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=${FAKE_DB_USER}
+      - POSTGRES_PASSWORD=${FAKE_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  fake_db_postgres_data:
