@@ -110,6 +110,9 @@ def delete_storage(
         session: Session = Depends(get_session)
         ):
     db_storage = get_db_storage_by_id(session=session, storage_id=storage_id)
+    db_location = db_storage.location_link.location
+    if db_location:
+        crud.delete_db_object(session=session, db_object=db_location)
     crud.delete_db_object(session=session, db_object=db_storage)
     return {"ok": True}
 

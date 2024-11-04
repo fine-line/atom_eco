@@ -117,6 +117,9 @@ def delete_company(
         session: Session = Depends(get_session)
         ):
     db_company = get_db_company_by_id(session=session, company_id=company_id)
+    db_location = db_company.location_link.location
+    if db_location:
+        crud.delete_db_object(session=session, db_object=db_location)
     crud.delete_db_object(session=session, db_object=db_company)
     return {"ok": True}
 
