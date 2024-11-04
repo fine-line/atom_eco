@@ -10,4 +10,6 @@ COPY ./app /code/app
 
 COPY ./.env /code/.env
 
+COPY ./testdata_generator.py /code/testdata_generator.py
+
 CMD ["fastapi", "run", "app/main.py", "--port", "8000"]
